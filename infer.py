@@ -2,6 +2,7 @@ import os
 import torch
 from dataprocessor import normalize
 from datasets import load_dataset, load_metric
+from transformers import AutoModelForCTC, Wav2Vec2Processor, Wav2Vec2CTCTokenizer
 
 BASE_PATH = "AUDIO_DIR"
 REPO_NAME = "SAVED_MODEL_PATH"
@@ -10,7 +11,6 @@ TEST_PATH = os.path.join(BASE_PATH, TEST_DIR)
 test_dataset = load_dataset("audiofolder", data_dir=TEST_PATH, name="test_audio")
 test_dataset = test_dataset.map(normalize)
 
-from transformers import AutoModelForCTC, Wav2Vec2Processor, Wav2Vec2CTCTokenizer
 
 tokenizer = Wav2Vec2CTCTokenizer(
     os.path.join(BASE_PATH, "vocab.json"), unk_token="[UNK]", pad_token="[PAD]", word_delimiter_token="|"

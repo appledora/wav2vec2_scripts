@@ -29,6 +29,12 @@ TRAIN_PATH = os.path.join(BASE_PATH, TRAIN_DIR)
 VALID_PATH = os.path.join(BASE_PATH, VALID_DIR)
 
 
+# Each of the audiofolder should have the following structure:
+# - [SPLIT]_FILES_DIR
+#   - 1.wav
+#   - 2.wav
+#   - ...
+#   - metadata.csv
 train_dataset = load_dataset("audiofolder", data_dir=TRAIN_PATH, name="train_audio")
 valid_dataset = load_dataset("audiofolder", data_dir=VALID_PATH, name="valid_audio")
 
