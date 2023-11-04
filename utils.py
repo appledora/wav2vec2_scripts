@@ -2,6 +2,11 @@ import json
 import os
 import logging
 from sox import Transformer
+import torch 
+import gc
+def clean_memory():
+    torch.cuda.empty_cache()
+    gc.collect()
 
 def extract_all_chars(batch):
   all_text = " ".join(batch["transcripts"])
@@ -39,3 +44,32 @@ def audio_sampling(sampling_rate:int = 16000, num_channel:int = 1, input_file_pa
                 output_filepath=output_wav_path)
 
         logging.info(f'Audio sampling done: {output_wav_path}')
+
+
+def prepare_dataset(batch, processor=processor):
+    audio = batch["audio"]
+
+    # batched output is "un-batched"
+    batch["input_values"] = processor(audio["array"], sampling_rate=audio["sampling_rate"]).input_values[0]
+    batch["input_length"] = len(batch["input_values"])
+
+    with processor.as_target_processor():
+        batch["labels"] = processor(batch["transcripts"]).input_ids
+    return batch
+
+
+def compute_metrics(pred):
+    pred_logits = pred.predictions
+    pred_ids = numpy.argmax(pred_logits, axis=-1)
+
+    pred.label_ids[pred.label_ids == -100] = processor.tokenizer.pad_token_id
+
+    pred_str = processor.batch_decode(pred_ids)
+    # we do not want to group tokens when computing the metrics
+    label_str = processor.batch_decode(pred.label_ids, group_tokens=False)
+
+    pred_str = [pred_str[i] for i in range(len(pred_str)) if len(label_str[i]) > 0]
+    label_str = [label_str[i] for i in range(len(label_str)) if len(label_str[i]) > 0]
+    wer = wer_metric.compute(predictions=pred_str, references=label_str)
+    cer = cer_metric.compute(predictions=pred_str, references=label_str)
+    return {"wer": wer, "cer": cer}
