@@ -39,6 +39,8 @@ Use the following script to start fine-tuning:
 ```bash
 python3 ft.py --train_dir path/to/train/files --valid_dir path/to/valid/files --audio_dir base/directory/containing/split/folders --repo_name hfrepo/you/want/to/finetune/from --generate_vocab
 ```
+#### Arguments
+The training arguments are available in the `args.json` file. To change the run parameters, edit this file.
 
 
 ### To run inference 
