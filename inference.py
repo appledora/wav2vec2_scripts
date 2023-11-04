@@ -2,7 +2,13 @@ import os
 import torch
 from dataprocessor import normalize
 from datasets import load_dataset, load_metric
-from transformers import AutoModelForCTC, Wav2Vec2Processor, Wav2Vec2CTCTokenizer
+from transformers import (
+    AutoModelForCTC,
+    Wav2Vec2Processor,
+    Wav2Vec2CTCTokenizer,
+    Wav2Vec2FeatureExtractor,
+    Wav2Vec2Processor,
+)
 
 BASE_PATH = "AUDIO_DIR"
 REPO_NAME = "SAVED_MODEL_PATH"
@@ -16,12 +22,10 @@ tokenizer = Wav2Vec2CTCTokenizer(
     os.path.join(BASE_PATH, "vocab.json"), unk_token="[UNK]", pad_token="[PAD]", word_delimiter_token="|"
 )
 model = AutoModelForCTC.from_pretrained(REPO_NAME)
-from transformers import Wav2Vec2FeatureExtractor
 
 feature_extractor = Wav2Vec2FeatureExtractor(
     feature_size=1, sampling_rate=16000, padding_value=0.0, do_normalize=True, return_attention_mask=True
 )
-from transformers import Wav2Vec2Processor
 
 processor = Wav2Vec2Processor(feature_extractor=feature_extractor, tokenizer=tokenizer)
 

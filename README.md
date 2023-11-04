@@ -6,6 +6,9 @@ conda env create -f environment.yml
 conda activate lstt
 ```
 
+
+
+
 ### To run inference 
 Change the filepaths in `inference.py` and run the following command:
 ```bash

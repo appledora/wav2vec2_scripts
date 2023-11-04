@@ -1,4 +1,7 @@
-from dataprocessor import normalize, DataCollatorCTCWithPadding, prepare_dataset, compute_metrics
+import argparse
+import logging
+from dataprocessor import normalize, DataCollatorCTCWithPadding, prepare_dataset
+from utils import compute_metrics, clean_memory
 from datasets import load_dataset, load_metric
 from transformers import (
     Wav2Vec2CTCTokenizer,
@@ -11,7 +14,6 @@ from transformers import (
     HfArgumentParser,
 )
 import os
-import numpy
 import pandas as pd
 
 wer_metric = load_metric("wer")
@@ -65,7 +67,6 @@ def __main__():
     args = argparse.ArgumentParser()
     args.add_argument("--train_dir", type=str, default="TRAIN_FILES_DIR", help="Training data directory")
     args.add_argument("--valid_dir", type=str, default="VALID_FILES_DIR", help="Validation data directory")
-    args.add_argument("--output_dir", type=str, default="OUTPUT_DIR", help="Path to save checkpoints")
     args.add_argument("--audio_dir", type=str, default="AUDIO_DIR", help="Base directory to split folders")
     args.add_argument("--repo_name", type=str, default="SAVED_MODEL_PATH", help="Pretrained model repo name")
 
@@ -73,7 +74,6 @@ def __main__():
     BASE_PATH = args.audio_dir
     TRAIN_DIR = args.train_dir
     VALID_DIR = args.valid_dir
-    OUTPUT_DIR = args.output_dir
 
     TRAIN_PATH = os.path.join(BASE_PATH, TRAIN_DIR)
     VALID_PATH = os.path.join(BASE_PATH, VALID_DIR)
@@ -101,15 +101,17 @@ def __main__():
         lambda x: prepare_dataset(x, processor=processor), remove_columns=train_dataset.column_names["train"]
     )
     train_dataset = train_dataset.filter(lambda example: example is not None)
-    logger.info("Train dataset loaded.")
+    logging.info("Train dataset loaded.")
 
     valid_dataset = valid_dataset.map(
         lambda x: prepare_dataset(x, processor=processor), remove_columns=valid_dataset.column_names["test"]
     )
     valid_dataset = valid_dataset.filter(lambda example: example is not None)
-    logger.info("Validation dataset loaded.")
+    logging.info("Validation dataset loaded.")
 
     data_collator = DataCollatorCTCWithPadding(processor=processor, padding=True)
+
+    train_wav2vec2(train_dataset, valid_dataset, repo_name=args.repo_name, processor=processor, data_collator=data_collator)
 
 
 if __name__ == "__main__":
