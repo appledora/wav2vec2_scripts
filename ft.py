@@ -1,7 +1,9 @@
 import argparse
 import logging
+from typing import Any
+import torch
 from dataprocessor import normalize, DataCollatorCTCWithPadding, prepare_dataset
-from utils import compute_metrics, clean_memory
+from utils import compute_metrics, clean_memory, get_vocab
 from datasets import load_dataset, load_metric
 from transformers import (
     Wav2Vec2CTCTokenizer,
@@ -21,7 +23,7 @@ cer_metric = load_metric("cer", revision="master")
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-def train_wav2vec2(train_dataset, valid_dataset, repo_name="facebook/wav2vec2-xls-r-300m", processor, data_collator):
+def train_wav2vec2(train_dataset, valid_dataset, processor, data_collator, repo_name="facebook/wav2vec2-xls-r-300m"):
     # add arguments to run this script:
     parser = HfArgumentParser(TrainingArguments)
     (training_args,) = parser.parse_json_file(json_file="args.json")
@@ -69,11 +71,13 @@ def __main__():
     args.add_argument("--valid_dir", type=str, default="VALID_FILES_DIR", help="Validation data directory")
     args.add_argument("--audio_dir", type=str, default="AUDIO_DIR", help="Base directory to split folders")
     args.add_argument("--repo_name", type=str, default="SAVED_MODEL_PATH", help="Pretrained model repo name")
+    args.add_argument("--generate_vocab", type=bool, default=False, help="Generate vocab.json file")
 
     args = args.parse_args()
     BASE_PATH = args.audio_dir
     TRAIN_DIR = args.train_dir
     VALID_DIR = args.valid_dir
+    gen_vocab = args.generate_vocab
 
     TRAIN_PATH = os.path.join(BASE_PATH, TRAIN_DIR)
     VALID_PATH = os.path.join(BASE_PATH, VALID_DIR)
@@ -90,6 +94,9 @@ def __main__():
     train_dataset = train_dataset.map(normalize)
     valid_dataset = valid_dataset.map(normalize)
 
+    if gen_vocab:
+        get_vocab(train_dataset, valid_dataset, BASE_PATH)
+        logging.info("Vocab file generated at {}".format(os.path.join(BASE_PATH, "vocab.json")))
     tokenizer = Wav2Vec2CTCTokenizer(
         os.path.join(BASE_PATH, "vocab.json"), unk_token="[UNK]", pad_token="[PAD]", word_delimiter_token="|"
     )
@@ -111,7 +118,9 @@ def __main__():
 
     data_collator = DataCollatorCTCWithPadding(processor=processor, padding=True)
 
-    train_wav2vec2(train_dataset, valid_dataset, repo_name=args.repo_name, processor=processor, data_collator=data_collator)
+    train_wav2vec2(
+        train_dataset, valid_dataset, repo_name=args.repo_name, processor=processor, data_collator=data_collator
+    )
 
 
 if __name__ == "__main__":
