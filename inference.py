@@ -1,6 +1,8 @@
+import argparse
+import pandas as pd
 import os
 import torch
-from dataprocessor import normalize
+from dataprocessor import normalize, prepare_dataset
 from datasets import load_dataset, load_metric
 from transformers import (
     AutoModelForCTC,
@@ -10,43 +12,17 @@ from transformers import (
     Wav2Vec2Processor,
 )
 
-BASE_PATH = "AUDIO_DIR"
-REPO_NAME = "SAVED_MODEL_PATH"
-TEST_DIR = "TEST_FILES_DIR"
-TEST_PATH = os.path.join(BASE_PATH, TEST_DIR)
-test_dataset = load_dataset("audiofolder", data_dir=TEST_PATH, name="test_audio")
-test_dataset = test_dataset.map(normalize)
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model = None
 
 
-tokenizer = Wav2Vec2CTCTokenizer(
-    os.path.join(BASE_PATH, "vocab.json"), unk_token="[UNK]", pad_token="[PAD]", word_delimiter_token="|"
-)
-model = AutoModelForCTC.from_pretrained(REPO_NAME)
-
-feature_extractor = Wav2Vec2FeatureExtractor(
-    feature_size=1, sampling_rate=16000, padding_value=0.0, do_normalize=True, return_attention_mask=True
-)
-
-processor = Wav2Vec2Processor(feature_extractor=feature_extractor, tokenizer=tokenizer)
+def init_model(REPO_NAME):
+    model = AutoModelForCTC.from_pretrained(REPO_NAME)
+    model.to(device)
+    print(f"Model loaded: {REPO_NAME}")
 
 
-def prepare_dataset(batch):
-    audio = batch["audio"]
-
-    # batched output is "un-batched"
-    batch["input_values"] = processor(audio["array"], sampling_rate=audio["sampling_rate"]).input_values[0]
-    batch["input_length"] = len(batch["input_values"])
-
-    with processor.as_target_processor():
-        batch["labels"] = processor(batch["transcripts"]).input_ids
-
-    return batch
-
-
-model.to("cuda")
-
-
-def map_to_result(batch):
+def map_to_result(batch, processor):
     with torch.no_grad():
         input_values = torch.tensor(batch["input_values"], device="cuda").unsqueeze(0)
         logits = model(input_values).logits
@@ -54,18 +30,88 @@ def map_to_result(batch):
     pred_ids = torch.argmax(logits, dim=-1)
     batch["pred_str"] = processor.batch_decode(pred_ids)[0]
     batch["text"] = processor.decode(batch["labels"], group_tokens=False)
-    print(">: ", batch["pred_str"])
-    print(">>: ", batch["text"])
+    # print(">: ", batch["pred_str"])
+    # print(">>: ", batch["text"])
     return batch
 
 
-test_dataset = test_dataset.map(prepare_dataset, remove_columns=test_dataset.column_names["test"])
-test_dataset = test_dataset.filter(lambda example: example is not None)
+def __main__():
+    args = argparse.ArgumentParser()
+    args.add_argument(
+        "--audio_dir",
+        type=str,
+        default="AUDIO_DIR",
+        help="Base directory containing split folders",
+    )
+    args.add_argument(
+        "--test_dir", type=str, default="TEST_FILES_DIR", help="Test data directory"
+    )
+    args.add_argument(
+        "--repo_name",
+        type=str,
+        default="SAVED_MODEL_PATH",
+        help="Fine-tuned model checkpoint",
+    )
+    args.add_argument(
+        "--result_dir",
+        type=str,
+        default="RESULT_DIR",
+        help="Location to save the inference results",
+    )
 
-results = test_dataset["test"].map(map_to_result, remove_columns=test_dataset["test"].column_names)
-results = results.filter(lambda result: len(result["pred_str"]) > 0 and len(result["text"]) > 0)
+    args = args.parse_args()
+    BASE_PATH = args.audio_dir
+    TEST_DIR = args.test_dir
+    TEST_PATH = os.path.join(BASE_PATH, TEST_DIR)
+    REPO_NAME = args.repo_name
+    RESULT_DIR = args.result_dir
+
+    test_dataset = load_dataset("audiofolder", data_dir=TEST_PATH, name="test_audio")
+    test_dataset = test_dataset.map(normalize)
+    tokenizer = Wav2Vec2CTCTokenizer(
+        os.path.join(BASE_PATH, "vocab.json"),
+        unk_token="[UNK]",
+        pad_token="[PAD]",
+        word_delimiter_token="|",
+    )
+
+    feature_extractor = Wav2Vec2FeatureExtractor(
+        feature_size=1,
+        sampling_rate=16000,
+        padding_value=0.0,
+        do_normalize=True,
+        return_attention_mask=True,
+    )
+
+    processor = Wav2Vec2Processor(
+        feature_extractor=feature_extractor, tokenizer=tokenizer
+    )
+    test_dataset = test_dataset.map(
+        lambda x: prepare_dataset(x, processor),
+        remove_columns=test_dataset.column_names["test"],
+    )
+    test_dataset = test_dataset.filter(lambda example: example is not None)
+    init_model(REPO_NAME)
+    results = test_dataset["test"].map(
+        map_to_result, remove_columns=test_dataset["test"].column_names
+    )
+    results = results.filter(
+        lambda result: len(result["pred_str"]) > 0 and len(result["text"]) > 0
+    )
+
+    wer_metric = load_metric("wer")
+    print(
+        "Test WER: {:.3f}".format(
+            wer_metric.compute(
+                predictions=results["pred_str"], references=results["text"]
+            )
+        )
+    )
+
+    results_df = pd.DataFrame(results)
+    results_df.to_csv(os.path.join(RESULT_DIR, "results.csv"))
+    print("Inference results saved to: ", RESULT_DIR)
 
 
-wer_metric = load_metric("wer")
-
-print("Test WER: {:.3f}".format(wer_metric.compute(predictions=results["pred_str"], references=results["text"])))
+if __name__ == "__main__":
+    __main__()

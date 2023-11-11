@@ -23,7 +23,13 @@ cer_metric = load_metric("cer", revision="master")
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-def train_wav2vec2(train_dataset, valid_dataset, processor, data_collator, repo_name="facebook/wav2vec2-xls-r-300m"):
+def train_wav2vec2(
+    train_dataset,
+    valid_dataset,
+    processor,
+    data_collator,
+    repo_name="facebook/wav2vec2-xls-r-300m",
+):
     # add arguments to run this script:
     parser = HfArgumentParser(TrainingArguments)
     (training_args,) = parser.parse_json_file(json_file="args.json")
@@ -54,7 +60,11 @@ def train_wav2vec2(train_dataset, valid_dataset, processor, data_collator, repo_
         train_dataset=train_dataset["train"],
         eval_dataset=valid_dataset["test"],
         tokenizer=processor.feature_extractor,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=5, early_stopping_threshold=0.0001)],
+        callbacks=[
+            EarlyStoppingCallback(
+                early_stopping_patience=5, early_stopping_threshold=0.0001
+            )
+        ],
     )
     trainer.train(resume_from_checkpoint=False)
     trainer.save_model("w2v_all_cer")
@@ -67,11 +77,33 @@ def train_wav2vec2(train_dataset, valid_dataset, processor, data_collator, repo_
 
 def __main__():
     args = argparse.ArgumentParser()
-    args.add_argument("--train_dir", type=str, default="TRAIN_FILES_DIR", help="Training data directory")
-    args.add_argument("--valid_dir", type=str, default="VALID_FILES_DIR", help="Validation data directory")
-    args.add_argument("--audio_dir", type=str, default="AUDIO_DIR", help="Base directory to split folders")
-    args.add_argument("--repo_name", type=str, default="SAVED_MODEL_PATH", help="Pretrained model repo name")
-    args.add_argument("--generate_vocab", type=bool, default=False, help="Generate vocab.json file")
+    args.add_argument(
+        "--train_dir",
+        type=str,
+        default="TRAIN_FILES_DIR",
+        help="Training data directory",
+    )
+    args.add_argument(
+        "--valid_dir",
+        type=str,
+        default="VALID_FILES_DIR",
+        help="Validation data directory",
+    )
+    args.add_argument(
+        "--audio_dir",
+        type=str,
+        default="AUDIO_DIR",
+        help="Base directory containing split folders",
+    )
+    args.add_argument(
+        "--repo_name",
+        type=str,
+        default="SAVED_MODEL_PATH",
+        help="Pretrained model repo name",
+    )
+    args.add_argument(
+        "--generate_vocab", type=bool, default=False, help="Generate vocab.json file"
+    )
 
     args = args.parse_args()
     BASE_PATH = args.audio_dir
@@ -96,22 +128,35 @@ def __main__():
 
     if gen_vocab:
         get_vocab(train_dataset, valid_dataset, BASE_PATH)
-        logging.info("Vocab file generated at {}".format(os.path.join(BASE_PATH, "vocab.json")))
+        logging.info(
+            "Vocab file generated at {}".format(os.path.join(BASE_PATH, "vocab.json"))
+        )
     tokenizer = Wav2Vec2CTCTokenizer(
-        os.path.join(BASE_PATH, "vocab.json"), unk_token="[UNK]", pad_token="[PAD]", word_delimiter_token="|"
+        os.path.join(BASE_PATH, "vocab.json"),
+        unk_token="[UNK]",
+        pad_token="[PAD]",
+        word_delimiter_token="|",
     )
     feature_extractor = Wav2Vec2FeatureExtractor(
-        feature_size=1, sampling_rate=16000, padding_value=0.0, do_normalize=False, return_attention_mask=True
+        feature_size=1,
+        sampling_rate=16000,
+        padding_value=0.0,
+        do_normalize=False,
+        return_attention_mask=True,
     )
-    processor = Wav2Vec2Processor(feature_extractor=feature_extractor, tokenizer=tokenizer)
+    processor = Wav2Vec2Processor(
+        feature_extractor=feature_extractor, tokenizer=tokenizer
+    )
     train_dataset = train_dataset.map(
-        lambda x: prepare_dataset(x, processor=processor), remove_columns=train_dataset.column_names["train"]
+        lambda x: prepare_dataset(x, processor=processor),
+        remove_columns=train_dataset.column_names["train"],
     )
     train_dataset = train_dataset.filter(lambda example: example is not None)
     logging.info("Train dataset loaded.")
 
     valid_dataset = valid_dataset.map(
-        lambda x: prepare_dataset(x, processor=processor), remove_columns=valid_dataset.column_names["test"]
+        lambda x: prepare_dataset(x, processor=processor),
+        remove_columns=valid_dataset.column_names["test"],
     )
     valid_dataset = valid_dataset.filter(lambda example: example is not None)
     logging.info("Validation dataset loaded.")
@@ -119,7 +164,11 @@ def __main__():
     data_collator = DataCollatorCTCWithPadding(processor=processor, padding=True)
 
     train_wav2vec2(
-        train_dataset, valid_dataset, repo_name=args.repo_name, processor=processor, data_collator=data_collator
+        train_dataset,
+        valid_dataset,
+        repo_name=args.repo_name,
+        processor=processor,
+        data_collator=data_collator,
     )
 
 
