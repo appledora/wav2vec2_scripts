@@ -44,8 +44,8 @@ The training arguments are available in the `args.json` file. To change the run 
 
 
 ### To run inference 
-Change the filepaths in `inference.py` and run the following command:
+Inference is the same as fine-tuning command:
 ```bash
-python inference.py
+python inference.py --test_dir path/to/test/files --audio_dir base/directory/containing/split/folders --ckpt_dir your/saved/checkpoint/dir --results_dir path/to/save/results
 ```
 

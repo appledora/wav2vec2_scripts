@@ -47,7 +47,7 @@ def __main__():
         "--test_dir", type=str, default="TEST_FILES_DIR", help="Test data directory"
     )
     args.add_argument(
-        "--repo_name",
+        "--ckpt_dir",
         type=str,
         default="SAVED_MODEL_PATH",
         help="Fine-tuned model checkpoint",
@@ -63,7 +63,7 @@ def __main__():
     BASE_PATH = args.audio_dir
     TEST_DIR = args.test_dir
     TEST_PATH = os.path.join(BASE_PATH, TEST_DIR)
-    REPO_NAME = args.repo_name
+    REPO_NAME = args.ckpt_dir
     RESULT_DIR = args.result_dir
 
     test_dataset = load_dataset("audiofolder", data_dir=TEST_PATH, name="test_audio")
