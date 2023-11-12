@@ -93,7 +93,8 @@ def __main__():
     test_dataset = test_dataset.filter(lambda example: example is not None)
     init_model(REPO_NAME)
     results = test_dataset["test"].map(
-        map_to_result, remove_columns=test_dataset["test"].column_names
+        lambda x: prepare_dataset(x, processor=processor),
+        remove_columns=test_dataset["test"].column_names,
     )
     results = results.filter(
         lambda result: len(result["pred_str"]) > 0 and len(result["text"]) > 0
