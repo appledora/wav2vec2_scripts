@@ -17,6 +17,7 @@ model = None
 
 
 def init_model(REPO_NAME):
+    global model
     model = AutoModelForCTC.from_pretrained(REPO_NAME)
     model.to(device)
     print(f"Model loaded: {REPO_NAME}")
@@ -24,14 +25,13 @@ def init_model(REPO_NAME):
 
 def map_to_result(batch, processor):
     with torch.no_grad():
-        input_values = torch.tensor(batch["input_values"], device="cuda").unsqueeze(0)
+        input_values = torch.tensor(batch["input_values"], device=device).unsqueeze(0)
         logits = model(input_values).logits
 
     pred_ids = torch.argmax(logits, dim=-1)
     batch["pred_str"] = processor.batch_decode(pred_ids)[0]
     batch["text"] = processor.decode(batch["labels"], group_tokens=False)
-    # print(">: ", batch["pred_str"])
-    # print(">>: ", batch["text"])
+
     return batch
 
 
@@ -92,10 +92,12 @@ def __main__():
     )
     test_dataset = test_dataset.filter(lambda example: example is not None)
     init_model(REPO_NAME)
+
     results = test_dataset["test"].map(
-        lambda x: prepare_dataset(x, processor=processor),
+        lambda x: map_to_result(x, processor),
         remove_columns=test_dataset["test"].column_names,
     )
+
     results = results.filter(
         lambda result: len(result["pred_str"]) > 0 and len(result["text"]) > 0
     )
